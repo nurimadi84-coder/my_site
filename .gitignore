@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 data/config.json
 data/chats.json
 data/orders.json
@@ -24,3 +26,14 @@ dist/
 logs/
 data/mirrors/
 data/trash/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+.venv/
+venv/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
