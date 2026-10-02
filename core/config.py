@@ -157,9 +157,26 @@ def normalize_request_path(path: str) -> str:
     return resolved.lower()
 
 
+# Что из корня проекта можно отдавать браузеру. Остальные файлы и папки корня (.git, Dockerfile,
+# docker-compose.yml, заметки) закрыты, даже если их нет в BLOCKED.
+PUBLIC_ROOT_ENTRIES = {"assets", "index.html", "favicon.svg", "styles.css", "admin.css"}
+
+
+def _root_entries() -> set[str]:
+    try:
+        return {name.lower() for name in os.listdir(ROOT)}
+    except OSError:
+        return set()
+
+
 def is_blocked(path: str) -> bool:
     p = normalize_request_path(path)
     if p in BLOCKED:
+        return True
+    segments = [s for s in p.split("/") if s]
+    if any(s.startswith(".") and s != ".well-known" for s in segments):
+        return True
+    if segments and segments[0] not in PUBLIC_ROOT_ENTRIES and segments[0] in _root_entries():
         return True
     if p.startswith("/data/") or p == "/data":
         return True

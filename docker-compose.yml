@@ -9,6 +9,10 @@ services:
     restart: unless-stopped
     stop_signal: SIGINT
     stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     env_file: .env
     environment:
       MEBEL_HOST: 0.0.0.0

@@ -17,9 +17,12 @@ Dev:     npm run dev     →  http://127.0.0.1:5173/ (прокси на API)
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import mimetypes
 import os
+import re
 import socket
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -43,6 +46,7 @@ from core.config import (
 )
 from core import auth, db, settings
 from core.context import AppContext
+from core.http import is_https
 from core.logging_setup import setup_logging
 from features import FEATURES
 
@@ -56,9 +60,52 @@ for feature in FEATURES:
     feature.register(CTX.router, CTX)
 
 
+_INLINE_SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc=)([^>]*)>(.*?)</script>", re.S | re.I)
+_csp_cache: dict[str, object] = {"mtime": None, "value": ""}
+
+
+def _inline_script_hashes() -> list[str]:
+    """Хеши инлайн-скриптов dist/index.html: CSP разрешает ровно их, без 'unsafe-inline'."""
+    index = DIST / "index.html"
+    try:
+        mtime = index.stat().st_mtime
+    except OSError:
+        return []
+    if _csp_cache["mtime"] != mtime:
+        hashes = []
+        for attrs, body in _INLINE_SCRIPT_RE.findall(index.read_text(encoding="utf-8")):
+            if "application/ld+json" in attrs.lower():
+                continue
+            digest = hashlib.sha256(body.encode("utf-8")).digest()
+            hashes.append(f"'sha256-{base64.b64encode(digest).decode()}'")
+        _csp_cache.update(mtime=mtime, value=hashes)
+    return list(_csp_cache["value"])
+
+
+def site_csp() -> str:
+    scripts = " ".join(["'self'", *_inline_script_hashes()])
+    return "; ".join(
+        [
+            "default-src 'self'",
+            f"script-src {scripts}",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' data: https://fonts.gstatic.com",
+            "img-src 'self' data: blob:",
+            "connect-src 'self'",
+            "frame-src 'self' blob:",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+        ]
+    )
+
+
 class ShopHandler(SimpleHTTPRequestHandler):
     timeout = 60
     response_started = False
+    server_version = "MebelAlmaty"
+    sys_version = ""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -72,11 +119,14 @@ class ShopHandler(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+        if is_https(self):
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
         if normalize_request_path(urlparse(self.path).path).startswith("/assets/chat/"):
             # Файлы от посетителей: даже если что-то исполняемое попадёт в папку, оно не получит доступ к сайту.
             self.send_header("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
         else:
-            self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+            self.send_header("Content-Security-Policy", site_csp())
         super().end_headers()
 
     def translate_path(self, path: str) -> str:

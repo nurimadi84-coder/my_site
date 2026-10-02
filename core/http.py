@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from http.server import BaseHTTPRequestHandler
@@ -24,6 +25,19 @@ def client_ip(handler: BaseHTTPRequestHandler) -> str:
         if real:
             return real[:64]
     return handler.client_address[0] if handler.client_address else "unknown"
+
+
+def same_origin(handler: BaseHTTPRequestHandler) -> bool:
+    """Браузер ставит Origin на POST/PATCH/DELETE; чужой Origin — запрос со стороннего сайта (CSRF)."""
+    origin = handler.headers.get("Origin", "").strip()
+    if not origin:
+        return True
+    if origin == "null":
+        return False
+    host = handler.headers.get("Host", "").strip().lower()
+    if behind_proxy():
+        host = handler.headers.get("X-Forwarded-Host", "").split(",")[0].strip().lower() or host
+    return bool(host) and urlparse(origin).netloc.lower() == host
 
 
 def is_https(handler: BaseHTTPRequestHandler) -> bool:

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from .auth import authorized
-from .http import send_json
+from .http import same_origin, send_json
 
 HandlerFn = Callable[..., None]
 
@@ -67,6 +67,11 @@ class Router:
 
     def dispatch(self, handler, method: str, path: str) -> bool:
         method = method.upper()
+        if method not in {"GET", "HEAD"} and not same_origin(handler):
+            log.warning("отклонён %s %s с чужого Origin %s", method, path, handler.headers.get("Origin", "")[:200])
+            handler.close_connection = True
+            send_json(handler, {"error": "Запрос с другого сайта отклонён"}, 403)
+            return True
         catch_alls: list[Route] = []
         for route in self._routes:
             if route.method != method:
