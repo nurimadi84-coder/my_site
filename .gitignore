@@ -1,39 +1,47 @@
+# Секреты
 .env
 .env.*
 !.env.example
-data/config.json
-data/chats.json
-data/orders.json
-data/clients.json
-data/products.json
-data/shop.db
-data/shop.db-*
-data/backups/
-data/legacy/
-data/archive/
-__pycache__/
-*.pyc
-assets/products/*
-!assets/products/.gitkeep
-assets/chat/*
-!assets/chat/.gitkeep
-node_modules/
-dist/
-.vite/
-.DS_Store
-*.log
-*.log.*
-logs/
-data/mirrors/
-data/trash/
+*.pem
+*.key
+
+# Рабочие данные: база, клиенты, заказы, чаты, бэкапы
+/data/
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# Загрузки пользователей
+assets/products/*
+!assets/products/.gitkeep
+assets/chat/*
+!assets/chat/.gitkeep
+
+# Сборка и зависимости
+node_modules/
+dist/
+.vite/
+
+# Python
+__pycache__/
+*.pyc
 .venv/
 venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Логи
+logs/
+*.log
+*.log.*
+
+# Редакторы и система
 .vscode/
 .idea/
+.DS_Store
 Thumbs.db
 desktop.ini
+~$*
