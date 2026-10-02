@@ -1,0 +1,17 @@
+.env
+node_modules
+dist
+data
+logs
+assets/products/*
+assets/chat/*
+assets/inbox
+**/__pycache__
+**/*.pyc
+.vite
+.git
+*.md
+start.bat
+Dockerfile
+docker-compose.yml
+.dockerignore

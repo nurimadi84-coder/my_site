@@ -1,0 +1,35 @@
+services:
+  mebel:
+    build:
+      context: .
+      args:
+        PHONE_E164: ${PHONE_E164:?PHONE_E164 не задан в .env}
+    image: mebel-almaty:latest
+    container_name: mebel-almaty
+    restart: unless-stopped
+    stop_signal: SIGINT
+    stop_grace_period: 30s
+    env_file: .env
+    environment:
+      MEBEL_HOST: 0.0.0.0
+      MEBEL_PORT: "8780"
+      MEBEL_DATA_DIR: /app/data
+      TZ: Asia/Almaty
+      # Пути Windows из .env внутри Linux не работают: те же папки подключены томами ниже
+      BACKUP_MIRROR_DIRS: /mirrors/e;/mirrors/onedrive
+    ports:
+      # Только этот компьютер, как и без Docker
+      - "127.0.0.1:8780:8780"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./assets/products:/app/assets/products
+      - ./assets/chat:/app/assets/chat
+      - E:/MebelBackups:/mirrors/e
+      - ${OneDrive:-./data/mirrors}/MebelBackups:/mirrors/onedrive
+    # Полный лог и так пишется в logs/; без лимита консольный лог Docker растёт бесконечно
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
