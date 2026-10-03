@@ -194,17 +194,20 @@ function clientMetaLine(client) {
   return when ? `последний заказ ${when}` : "есть заказы";
 }
 
-function shrinkPhoto(file) {
+// Сервер хранит оригинал как есть и сам делает облегчённые копии для сайта.
+const UPLOAD_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_UPLOAD_MB = 25;
+
+// Только для форматов, которые сервер не принимает (HEIC и т.п.): перекодировать в JPEG без уменьшения.
+function convertToJpeg(file) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const url = URL.createObjectURL(file);
     image.onload = () => {
-      const max = 1600;
-      const scale = Math.min(1, max / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
-      canvas.width = Math.round(image.width * scale);
-      canvas.height = Math.round(image.height * scale);
-      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext("2d").drawImage(image, 0, 0);
       canvas.toBlob(
         (blob) => {
           URL.revokeObjectURL(url);
@@ -212,7 +215,7 @@ function shrinkPhoto(file) {
           else resolve(blob);
         },
         "image/jpeg",
-        0.84
+        0.95
       );
     };
     image.onerror = () => {
@@ -224,12 +227,15 @@ function shrinkPhoto(file) {
 }
 
 async function uploadPhoto(file) {
-  const blob = await shrinkPhoto(file);
+  const body = UPLOAD_TYPES.has(file.type) ? file : await convertToJpeg(file);
+  if (body.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    throw new Error(`Фото «${file.name}» больше ${MAX_UPLOAD_MB} МБ`);
+  }
   const response = await fetch("/api/upload", {
     method: "POST",
     credentials: "same-origin",
-    headers: { "Content-Type": "image/jpeg" },
-    body: blob,
+    headers: { "Content-Type": body.type || "image/jpeg" },
+    body,
   });
   const data = await response.json().catch(() => null);
   if (!data) throw new Error(`Фото не загрузилось: сервер вернул некорректный ответ (HTTP ${response.status})`);
@@ -805,7 +811,7 @@ export function AdminPage() {
               ) : (
                 products.map((product) => (
                   <article className="admin-row" key={product.id}>
-                    {product.image ? <img src={product.image} alt="" /> : <span className="admin-row__ph" />}
+                    {product.image ? <img src={product.cards?.[0] || product.image} alt="" /> : <span className="admin-row__ph" />}
                     <div>
                       <h2>{product.title}</h2>
                       <p>

@@ -11,6 +11,15 @@ export function productImages(product) {
   return product.image ? [product.image] : [];
 }
 
+// Облегчённые копии с сервера (cards — карточки и превью, views — большой просмотр); нет копии — оригинал.
+function sizedImages(product, key) {
+  const sized = Array.isArray(product?.[key]) ? product[key] : [];
+  return productImages(product).map((src, index) => sized[index] || src);
+}
+
+export const productCards = (product) => sizedImages(product, "cards");
+export const productViews = (product) => sizedImages(product, "views");
+
 export function orderText(product) {
   const lines = [
     "Здравствуйте! Хочу оформить заказ с сайта Mebel Almaty.",

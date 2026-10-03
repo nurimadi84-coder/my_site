@@ -76,7 +76,8 @@ except ConfigError as _port_err:
     PORT = 0
     STARTUP_ERRORS.append(str(_port_err))
 SPA_ROUTES = {"/", "/products", "/admin", "/index.html", "/products.html", "/admin.html"}
-MAX_IMAGE = 6 * 1024 * 1024
+# Оригинал фото товара хранится без сжатия: снимки с телефона бывают 10–15 МБ
+MAX_IMAGE = 25 * 1024 * 1024
 # 3 файла по 4 МБ в base64 (~16.8 МБ) + текст и история
 MAX_CHAT_BODY = 18 * 1024 * 1024
 MAX_CHAT_FILE = 4 * 1024 * 1024

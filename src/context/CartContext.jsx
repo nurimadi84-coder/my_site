@@ -1,6 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reportError } from "../utils/report";
-import { CART_KEY } from "../utils/shop";
+import { CART_KEY, productCards } from "../utils/shop";
 
 export const CartContext = createContext(null);
 
@@ -22,8 +22,7 @@ function writeCart(items) {
 }
 
 function productImagesFirst(product) {
-  if (Array.isArray(product.images) && product.images[0]) return product.images[0];
-  return product.image || "";
+  return productCards(product)[0] || "";
 }
 
 function cartItemFrom(product, qty = 1) {
@@ -34,7 +33,7 @@ function cartItemFrom(product, qty = 1) {
     currency: product.currency || "KZT",
     kind: product.kind || "Товар",
     category: product.category || "",
-    image: product.image || productImagesFirst(product),
+    image: productImagesFirst(product),
     qty,
   };
 }

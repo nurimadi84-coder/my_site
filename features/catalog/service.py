@@ -6,11 +6,12 @@ import logging
 import os
 import secrets
 import shutil
+import threading
 import time
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from core.config import DATA_FILE, MAX_IMAGE, PHOTO_TRASH_DAYS, PHOTO_TRASH_DIR, ROOT, UPLOAD_DIR
 from core.db import backup_files, dumps, import_legacy, loads, migrate, query, register_maintenance, transaction
@@ -116,6 +117,77 @@ def setup() -> None:
     import_legacy("legacy:products", [DATA_FILE], _import_products)
     cleanup_orphan_uploads()
     register_maintenance("catalog: брошенные фото", cleanup_orphan_uploads)
+    threading.Thread(target=sync_web_versions, name="catalog-web-photos", daemon=True).start()
+
+
+# Оригинал из кабинета хранится как есть; сайт показывает облегчённые копии из assets/products/web/.
+# Копии не попадают в резервные (backup_files берёт только файлы верхнего уровня) — их всегда можно пересоздать.
+WEB_DIR = UPLOAD_DIR / "web"
+WEB_SIZES = {"card": 800, "view": 1800}
+_web_lock = threading.Lock()
+
+
+def _web_file(original_name: str, size: str) -> Path:
+    return WEB_DIR / f"{Path(original_name).stem}-{size}.webp"
+
+
+def make_web_versions(original: Path) -> bool:
+    """Сделать копии для сайта: повернуть по EXIF, уменьшить без увеличения, сохранить в WebP."""
+    try:
+        with _web_lock, Image.open(original) as source:
+            img = ImageOps.exif_transpose(source)
+            has_alpha = img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info)
+            img = img.convert("RGBA" if has_alpha else "RGB")
+            WEB_DIR.mkdir(parents=True, exist_ok=True)
+            for size, limit in WEB_SIZES.items():
+                copy = img.copy()
+                copy.thumbnail((limit, limit), Image.LANCZOS)
+                target = _web_file(original.name, size)
+                partial = target.with_name(target.name + ".tmp")
+                copy.save(partial, "WEBP", quality=84, method=4)
+                os.replace(partial, target)
+        return True
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as err:
+        log.warning("не удалось сделать копии фото %s для сайта: %s", original.name, err)
+        return False
+
+
+def drop_web_versions(original_name: str) -> None:
+    for size in WEB_SIZES:
+        try:
+            _web_file(original_name, size).unlink(missing_ok=True)
+        except OSError as err:
+            log.warning("не удалось удалить копию фото %s: %s", original_name, err)
+
+
+def sync_web_versions() -> None:
+    """Создать недостающие копии для уже загруженных фото и убрать копии без оригинала."""
+    if not UPLOAD_DIR.is_dir():
+        return
+    originals = {p.stem: p for p in UPLOAD_DIR.iterdir() if p.is_file() and p.suffix.lower() in _UPLOAD_SUFFIXES}
+    made = 0
+    for path in originals.values():
+        if all(_web_file(path.name, size).is_file() for size in WEB_SIZES):
+            continue
+        if make_web_versions(path):
+            made += 1
+    if WEB_DIR.is_dir():
+        for path in WEB_DIR.iterdir():
+            if path.is_file() and path.stem.rsplit("-", 1)[0] not in originals:
+                try:
+                    path.unlink()
+                except OSError as err:
+                    log.warning("не удалось удалить лишнюю копию фото %s: %s", path.name, err)
+    if made:
+        log.info("сделаны копии для сайта: %s фото", made)
+
+
+def web_url(image: str, size: str) -> str:
+    """Адрес копии для сайта; пока копии нет — оригинал, чтобы фото всё равно показалось."""
+    name = image.rsplit("/", 1)[-1]
+    if _web_file(name, size).is_file():
+        return f"assets/products/web/{Path(name).stem}-{size}.webp"
+    return image
 
 
 def move_to_trash(path: Path) -> Path:
@@ -175,6 +247,7 @@ def cleanup_orphan_uploads(min_age_hours: float = 24.0) -> int:
             continue
         try:
             move_to_trash(path)
+            drop_web_versions(path.name)
             removed += 1
         except OSError as err:
             log.warning("не удалось убрать в корзину %s: %s", path.name, err)
@@ -219,6 +292,8 @@ def public_product(item: dict) -> dict:
         "description": item.get("description", ""),
         "image": images[0] if images else "",
         "images": images,
+        "cards": [web_url(path, "card") for path in images],
+        "views": [web_url(path, "view") for path in images],
         "visible": bool(item.get("visible", True)),
     }
 
@@ -365,6 +440,7 @@ def delete_image_file(image: str) -> None:
     path = (ROOT / image).resolve()
     if UPLOAD_DIR.resolve() in path.parents and path.is_file():
         move_to_trash(path)
+        drop_web_versions(path.name)
 
 
 _IMAGE_EXTENSIONS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp"}
@@ -381,9 +457,12 @@ def image_extension(data: bytes) -> str | None:
 
 
 def save_upload(data: bytes, extension: str) -> str:
+    """Оригинал пишется байт в байт; копии для сайта делаются рядом и сам файл не трогают."""
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     name = f"{secrets.token_hex(8)}{extension}"
-    (UPLOAD_DIR / name).write_bytes(data)
+    path = UPLOAD_DIR / name
+    path.write_bytes(data)
+    make_web_versions(path)
     return f"assets/products/{name}"
 
 

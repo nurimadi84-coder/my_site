@@ -1,5 +1,5 @@
 import { formatPrice } from "../utils/money";
-import { orderLink, orderPayload, orderText, productImages } from "../utils/shop";
+import { orderLink, orderPayload, orderText, productCards } from "../utils/shop";
 import { useCart } from "../hooks/useCart";
 import { useCrm } from "../context/CrmContext";
 import { PhotoPlaceholder, SafeImg } from "./SafeImg";
@@ -7,7 +7,7 @@ import { PhotoPlaceholder, SafeImg } from "./SafeImg";
 export function ProductCard({ product, onOpen }) {
   const { addToCart, isInCart } = useCart();
   const { openWhatsApp } = useCrm();
-  const images = productImages(product);
+  const images = productCards(product);
   const inCart = isInCart(product.id);
   const desc = (product.description || "").trim();
   const short = desc.length > 90 ? `${desc.slice(0, 87)}…` : desc;

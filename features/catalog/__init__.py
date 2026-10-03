@@ -77,7 +77,7 @@ def register(router: Router, ctx: AppContext) -> None:
             return
         length = content_length(handler)
         if length <= 0 or length > service.MAX_IMAGE:
-            send_json(handler, {"error": "Фото слишком большое. Сожмите его до 6 МБ."}, 400)
+            send_json(handler, {"error": f"Фото больше {service.MAX_IMAGE // (1024 * 1024)} МБ"}, 400)
             return
         data = read_body(handler, length)
         if data is None:
