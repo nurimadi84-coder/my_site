@@ -2162,23 +2162,22 @@ body:has(.nav-toggle:checked) .dock {
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1 / 1;
   height: auto;
   padding: 0;
   border: 0;
   overflow: hidden;
   cursor: zoom-in;
-  background:
-    radial-gradient(ellipse at 80% 0%, rgba(196, 163, 106, 0.18), transparent 46%),
-    linear-gradient(165deg, #1a2740, #101820);
+  background: var(--ivory-2);
 }
 
+/* contain: фото мебели бывают и широкие, и вертикальные — изделие должно быть видно целиком */
 .product__media img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   transition: transform 0.45s ease;
 }
@@ -2378,13 +2377,13 @@ span.photo-ph > img {
   border-radius: 16px;
   overflow: hidden;
   cursor: zoom-in;
-  background: transparent;
+  background: var(--ivory-2);
 }
 
 .product-sheet__hero img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .product-sheet__thumbs {
